@@ -3,7 +3,7 @@
     <!-- 左侧 -->
       <div class="left" ref='lbox'>
         <ul>
-          <li v-for="(item,index) in goods" :key="index" @click="selectMenu(index,$event)" :class="{'current':(index===currentIndex)}">
+          <li v-for="(item,index) in goods" :key="item.id" @click="selectMenu(index,$event)" :class="{'current':(index===currentIndex)}">
             <!-- <p><span>{{item.name}}</span></p> -->
             <p><span>
               <img v-if="item.type===2" src="../../assets/images/special_3@2x.png" style="width:12px;height:12px;"/>
@@ -16,11 +16,11 @@
       <!-- 右侧信息 -->
       <div class="right" ref='rbox'>
         <ul>
-      <li v-for="(item,index) in goods" :key="index" ref="foodList">
+      <li v-for="item in goods" :key="item.id" ref="foodList">
         <p class="title">{{item.name}}</p>
         <ul>
           <!--食物信息 -->
-        <li class="content" v-for="(food,index) in item.foods" :key="index" >
+        <li class="content" v-for="food in item.foods" :key="food.id" >
           <img :src="food.image" alt="图片">
           <div class="fonts">
             <p>{{food.name}}</p>
@@ -50,13 +50,63 @@ export default {
   name: "Goods",
   data() {
     return {
-      theme3: "light",
-      currentIndex: 0,
-      goods: {}
+      // theme3: "light",
+      // currentIndex:0,
+      goods: [],
+      offsetY: 0,
+      heightArr: []
     };
   },
-  computed: {},
+  created() {
+    const _this = this;
+    //请求数据
+    getGoods("156220").then(res => {
+      _this.$nextTick(() => {
+        this.goods = res.data.data;
+        _this.$nextTick(() => {});
+      });
+    });
+  },
   methods: {
+    //初始化滚动
+    _initScroll() {
+      //开启点击事件
+      this.menuScroll = new BScroll(this.$refs.lbox, { click: true });
+      // 初始化右侧滑动
+      this.foodsScroll = new BScroll(
+        this.$refs.rbox,
+        // { click: true },
+        { probeType: 3 }
+      );
+      //获取滚动距离
+      const _this = this;
+      _this.foodsScroll.on("scroll", e => {
+        _this.offsetY = Math.abs(Math.round(e.y));
+      });
+    },
+    //页面渲染完成，计算分类项的起始高度
+    _calculateHeight() {
+      const heightArr = [];
+      let height = 0;
+      heightArr.push(height);
+      //获取分类高度
+      const foodList = this.$refs.foodList;
+      //遍历计算高度
+      foodList.forEach((food, i) => {
+        if (i > foodList.length - 2) {
+          return;
+        }
+        //当前元素高度
+        // let currentHeight = food.clientHeight;
+        height+= food.clientHeight;
+        //下一项起始高度
+        // height += currentHeight;
+        //放入数组
+        heightArr.push(height);
+      });
+      this.heightArr = heightArr;
+      console.log("this.heightArr", this.heightArr);
+    },
     //点击菜单
     selectMenu(index, e) {
       // 判断事件是否由插件触发
@@ -71,45 +121,37 @@ export default {
       this.foodsScroll.scrollToElement(rightEl, 3000);
 
       // 记录选中的索引号
-      this.currentIndex = index;
+      // this.currentIndex = index;
     }
   },
   mounted() {
-    getGoods("156220").then(res => {
-      // console.log(res);
-      this.goods = res.data.data;
-    });
-    //开启点击事件
-    this.menuScroll = new BScroll(this.$refs.lbox, {
-      click: true
-    });
-
-    // 初始化右侧滑动
-    this.foodsScroll = new BScroll(this.$refs.rbox, {
-      // probeType: 3,
-      click: true // 开启事件点击
-    });
+    this._initScroll();
+    this._calculateHeight();
   },
-  //  computed: {
-  //   // 通过计算属性,根据scrollY的变化,修改index索引号
-  //   currentIndex() {
-  //     // 循环取出heightList
-  //     for (let i = 0; i < this.heightList.length; i++) {
-  //       const heightStart = this.heightList[i];
-  //       const heightEnd = this.heightList[i + 1]; // 如果超了,返回无效值
-
-  //       // 如果heightEnd无效代表最后一层,直接返回当前i
-  //       // 如果当前的起始坐标和结束坐标直接,代表处于当前流程,直接返回当前i
-  //       if (
-  //         !heightEnd ||
-  //         (this.scrollY >= heightStart && this.scrollY < heightEnd)
-  //       ) {
-  //         // 起始 < 当前  < 结束
-  //         return i;
-  //       }
-  //     }
-  //   },
-}
+  computed: {
+    // 通过计算属性,根据scrollY的变化,修改index索引号
+    currentIndex() {
+      // 循环取出heightList
+      for (let i = 0; i < this.heightArr.length; i++) {
+        let heightStart = this.heightArr[i];
+        let heightEnd;
+        if (i + 1 < this.heightArr.length) {
+          heightEnd = this.heightArr[i + 1]; // 如果超了,返回无效值
+        }
+        //在开始和结束之间
+        if (
+          !heightEnd ||
+          (this.offsetY >= heightStart && this.offsetY < heightEnd)
+        ) {
+         return i;
+         
+        }
+      }
+      //返回索引
+      return 0;
+    }
+  }
+};
 </script>
 <style lang="scss" scoped>
 * {
@@ -147,13 +189,13 @@ li {
           margin: 0 auto;
         }
       }
-    &.current {
-      background-color: white;
-      // color: rgb(7, 17, 27);
-      p {
-        border-bottom-color: white;
+      &.current {
+        background-color: white;
+        // color: rgb(7, 17, 27);
+        p {
+          border-bottom-color: white;
+        }
       }
-    }
     }
   }
   .right {
